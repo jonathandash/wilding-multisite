@@ -18,6 +18,7 @@ require(rgdal)
 require(rgeos)
 require(doParallel)
 library(sf)
+library(tidyverse)
 
 
 # Global options -----------------------------------------------------------------
@@ -25,6 +26,7 @@ library(sf)
 prefix<-'west'
 data.version<-'050420'
 seed<-12345
+target<-'west'
 
 
 # Functions ----------------------------------------------------------------------
@@ -121,13 +123,12 @@ treeallpoly = gBuffer(treeallpoly, byid=TRUE, width=0)
 
 nontreepoly = gDifference(aoi, treeallpoly)
 
-#plot(treeallpoly, col = 'red')
-#plot(nontreepoly, col = 'blue', add=TRUE)
+
 
 # load raster data 
 spec = stack(here('data', prefix, 'raster',  paste0(prefix, "_merged_mosaic_01.tif")))
 als  = stack(here('data', prefix, 'raster',  "wsw_als_metrics_hanmer.tif"))
-#stack(hyper, structure)
+
 
 names(spec)<-c("RED", "GREEN", "BLUE", "ALPHA1", "NIR", "JUNK", "RE", "ALPHA2")
 
@@ -147,7 +148,10 @@ spec$ndre<-calcNDRE(NIR = spec[[NIR]], RE = spec[[RED.EDGE]])
 
 spec<-stack(spec$RED, spec$GREEN, spec$BLUE, spec$NIR, spec$RE, spec$ndre, spec$ndvi)
 
-
+#plot(spec$ndvi)
+#plot(aoi, add=TRUE)
+#plot(treeallpoly, col = 'red', add=TRUE)
+#plot(nontreepoly, col = 'blue', add=TRUE)
 
 # Prepare the als raster
 names(als)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
@@ -161,11 +165,11 @@ names(als)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovez
 als<-crop(als, aoi, snap='near')
 
 # Only choose the variables of interest for pre-selection - REVIEW
-als_pred<-stack(als$zmax, als$zmean, als$zsd, als$zskew, als$pzabovezmean,
+als_pred<-stack(als$zmax, als$zmean, als$zsd, als$pzabovezmean,
                 als$zpcum1, als$zpcum2, als$zpcum3, 
                 als$zpcum4, als$zpcum5, als$zpcum6,
                 als$zq5, als$zq10, als$zq20, als$zq30, als$zq50, als$zq75, als$zq95,
-                als$isd, als$iskew, als$imean,
+                als$isd, als$imean,
                 als$ikurt, als$imax, als$pground,
                 als$p1th, als$p2th, als$p3th, als$p4th, als$p5th)
 
@@ -203,6 +207,9 @@ background = spsample(aoi, 2000, type="random")
 positive = spsample(treeallpoly, 2000, type="random")
 negative = spsample(nontreepoly, 2000, type = "random")
 
+#plot(als$zmax)
+#plot(positive, add=TRUE)
+
 # set.seed(seed)
 # positive<-st_sample(treeallpoly, size = 2000, type = 'random')
 # st_crs(positive)<-2193
@@ -211,8 +218,9 @@ negative = spsample(nontreepoly, 2000, type = "random")
 
 
 # First spectral model
-#rgbn_model <- maxent(x=spec, p = positive, a = background, removeDuplicates=F)
-#rgbn_model@results[ grep("permutation", row.names(as.data.frame(rgbn_model@results))), ]
+# rgbn_model <- maxent(x=spec, p = positive, a = background, removeDuplicates=F)
+# rgbn_model@results[ grep("permutation", row.names(as.data.frame(rgbn_model@results))), ]
+# eval <- evaluate(p=positive, a=negative, model = rgbn_model, x=spec)
 
 
 # First als model
@@ -221,7 +229,7 @@ negative = spsample(nontreepoly, 2000, type = "random")
 
 
 # First combined model
-#als_spec_model <- maxent(x=spec_als, p = positive, a = background, removeDuplicates=F)
+# als_spec_model <- maxent(x=spec_als, p = positive, a = background, removeDuplicates=F)
 #als_spec_model@results[ grep("permutation", row.names(as.data.frame(als_spec_model@results))), ]
 
 
@@ -236,8 +244,8 @@ negative = spsample(nontreepoly, 2000, type = "random")
 
 
 # run all combinations
-raster_list <- list(spec, als, spec_als)
-names(raster_list) <- c("spec", "als", "spec_als")
+raster_list <- list(spec, als_pred, spec_als)
+names(raster_list) <- c("spec", "als_pred", "spec_als")
 
 # Predict over the same rasters as used to fit the model for now.
 #raster_pred<-raster_list
@@ -316,19 +324,22 @@ for (i in 1:100){
   
   # loop throught datasets sharing the same training/validation samples
   for (j in 1:length(raster_list)){ 
+    #j=1
     # unique loop name
     outname = paste0(names(raster_list[j]), "_", prefix)
     fit <- maxent(x=raster_list[[j]], p = train_pos, a = train_back, removeDuplicates=F)
+    #fit <- maxent(x=spec, p = train_pos, a = train_back, removeDuplicates=F)
     eval <- evaluate(p=test_pos, a=test_neg, model = fit, x=raster_list[[j]])
     
     ac<-as.data.frame(getACC(eval))
-    ac$source<-raster_list[j]
+    ac$source<-outname
     
-    rbind(out, ac)
+    out<-rbind(out, ac)
     
     #save(pred_out, file = here('results', paste0(outname, ".RData")))
     print(paste0("Done ", outname, "!!!"))
   }
 }
 
-write_csv(out, here('results', paste0(outname, '.csv')))
+
+write_csv(out, here('results', paste0(prefix, data.version, '.csv')))
