@@ -1,0 +1,1 @@
+lasheight -i *.laz -odir norm -cores 4 -replace_z -olaz
