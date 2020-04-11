@@ -2,6 +2,7 @@
 # 01_UAV_Modelling
 # Select variables and fit Maxent models for the UAV data.
 # Output predictive maps and stats from the bootstrapping procedure.
+# Now updated for validation using different data
 # April 2020
 #---------------------------------------------------------------------------------
 
@@ -119,19 +120,19 @@ aoi_target = readOGR(here('data', target, 'shape',  paste0(target, "_aoi.shp")))
 
 #studyarea = gBuffer(studyarea, byid=TRUE, width=0)
 #treeallpoly = st_read(here('data', prefix, 'shape',  paste0(prefix, "_shapes_modified_", data.version, ".shp")))
-treeallpoly = readOGR(here('data', prefix, 'shape',  paste0(prefix, "_shapes_", data.version, ".shp")))
+treeallpoly = readOGR(here('data', prefix, 'shape',  paste0(prefix, "_shapes_modified_", data.version, ".shp")))
 treeallpoly = gBuffer(treeallpoly, byid=TRUE, width=0)
 
 treeallpolytarget = readOGR(here('data', target, 'shape',  paste0(target, "_shapes_", data.version, ".shp")))
-treeallpolytarget = gBuffer(treeallpoly, byid=TRUE, width=0)
+treeallpolytarget = gBuffer(treeallpolytarget, byid=TRUE, width=0)
 
 nontreepoly = gDifference(aoi, treeallpoly)
-nontreepolytarget = gDifference(aoi, treeallpolytarget)
+nontreepolytarget = gDifference(aoi_target, treeallpolytarget)
 
 
 # load raster data 
 spec = stack(here('data', prefix, 'raster',  paste0(prefix, "_merged_mosaic_01.tif")))
-als  = stack(here('data', prefix, 'raster',  "wsw_als_metrics_hanmer.tif"))
+als_og  = stack(here('data', prefix, 'raster',  "wsw_als_metrics_hanmer.tif"))
 
 spectarget = stack(here('data', target, 'raster',  paste0(target, "_merged_mosaic_01.tif")))
 
@@ -159,7 +160,7 @@ spectarget$ndre<-calcNDRE(NIR = spectarget[[NIR]], RE = spectarget[[RED.EDGE]])
 
 
 spec<-stack(spec$RED, spec$GREEN, spec$BLUE, spec$NIR, spec$RE, spec$ndre, spec$ndvi)
-spec<-stack(spectarget$RED, spectarget$GREEN, spectarget$BLUE, spectarget$NIR, spectarget$RE, spectarget$ndre, spectarget$ndvi)
+spectarget<-stack(spectarget$RED, spectarget$GREEN, spectarget$BLUE, spectarget$NIR, spectarget$RE, spectarget$ndre, spectarget$ndvi)
 
 
 #plot(spec$ndvi)
@@ -168,7 +169,7 @@ spec<-stack(spectarget$RED, spectarget$GREEN, spectarget$BLUE, spectarget$NIR, s
 #plot(nontreepoly, col = 'blue', add=TRUE)
 
 # Prepare the als raster
-names(als)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
+names(als_og)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
               'zq15', 'zq20', 'zq25', 'zq30', 'zq35', 'zq40', 'zq45', 'zq50', 'zq55', 'zq60', 
               'zq65', 'zq70', 'zq75', 'zq80', 'zq85', 'zq90', 'zq95', 'zpcum1', 'zpcum2', 'zpcum3', 
               'zpcum4', 'zpcum5', 'zpcum6', 'zpcum7', 'zpcum8', 'zpcum9', 'itot', 'imax', 'imean',
@@ -176,9 +177,9 @@ names(als)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovez
               'ipcumzq90',  'p1th', 'p2th', 'p3th', 'p4th', 'p5th', 'pground',  'n', 'area') 
 
 # Crop the als data to the aoi
-als<-crop(als, aoi, snap='near')
+als<-crop(als_og, aoi, snap='near')
 
-alstarget<-crop(als, aoi_target, snap='near')
+alstarget<-crop(als_og, aoi_target, snap='near')
 
 # Only choose the variables of interest for pre-selection - REVIEW
 als_pred<-stack(als$zmax, als$zmean, als$zsd, als$pzabovezmean,
@@ -190,17 +191,18 @@ als_pred<-stack(als$zmax, als$zmean, als$zsd, als$pzabovezmean,
                 als$p1th, als$p2th, als$p3th, als$p4th, als$p5th)
 
 als_pred_target<-stack(alstarget$zmax, alstarget$zmean, alstarget$zsd, alstarget$pzabovezmean,
-                alstarget$zpcum1, alstarget$zpcum2, alstarget$zpcum3, 
+                alstarget$zpcum1, alstarget$zpcum2, alstarget$zpcum3,
                 alstarget$zpcum4, alstarget$zpcum5, alstarget$zpcum6,
                 alstarget$zq5, alstarget$zq10, alstarget$zq20, alstarget$zq30, alstarget$zq50, alstarget$zq75, alstarget$zq95,
                 alstarget$isd, alstarget$imean,
                 alstarget$ikurt, alstarget$imax, alstarget$pground,
-                alstarget$p1th, alstarget$p2th, alstarget$p3th, alstarget$p4th, alstarget$p5th)
+               alstarget$p1th, alstarget$p2th, alstarget$p3th, alstarget$p4th, alstarget$p5th)
 
 # resample the als raster to match the UAV
 als_pred<-resample(als_pred, spec, "bilinear")
 
 als_pred_target<-resample(als_pred_target, spectarget, "bilinear")
+
 
 # Make the combined spectral and ALS raster dataset
 spec_als<-stack(spec, als_pred)
@@ -237,10 +239,11 @@ negative = spsample(nontreepoly, 2000, type = "random")
 
 background_target = spsample(aoi_target, 2000, type="random")
 positive_target = spsample(treeallpolytarget, 2000, type="random")
-negative = spsample(nontreepolytarget, 2000, type = "random")
+negative_target = spsample(nontreepolytarget, 2000, type = "random")
 
-#plot(als$zmax)
-#plot(positive, add=TRUE)
+#plot(spectarget$ndvi)
+#plot(aoi_target, add=TRUE)
+#plot(negative_target, add=TRUE)
 
 # set.seed(seed)
 # positive<-st_sample(treeallpoly, size = 2000, type = 'random')
@@ -294,11 +297,17 @@ names(pred_list) <- c("spectarget", "als_pred_target", "spec_als_target")
 pos.sf<-st_as_sf(positive)
 back.sf<-st_as_sf(background)
 neg.sf<-st_as_sf(negative)
+pos.targ.sf<-st_as_sf(positive_target)
+neg.targ.sf<-st_as_sf(negative_target)
+
+#plot(spectarget$ndvi)
+#plot(neg.targ.sf, add=TRUE)
+
 
 out<-data.frame()
 
 # k-fold cross validation
-for (i in 1:100){
+for (i in 1:48){
   #i=1
   print(i)
   
@@ -347,12 +356,52 @@ for (i in 1:100){
     #Use the test and train data partitions however you desire...
   }
   
+  
+  #Randomly shuffle the background data 
+  yourData<-neg.targ.sf[sample(nrow(neg.targ.sf)),]
+  
+  #Create 10 equally size folds
+  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
+  
+  #Perform 10 fold cross validation
+  for(i in 1:10){
+    #Segement your data by fold using the which() function 
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    test_targ_neg <- yourData[testIndexes, ]
+    train_targ_neg <- yourData[-testIndexes, ]
+    #Use the test and train data partitions however you desire...
+  }
+  
+  #Randomly shuffle the background data 
+  yourData<-pos.targ.sf[sample(nrow(pos.targ.sf)),]
+  
+  #Create 10 equally size folds
+  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
+  
+  #Perform 10 fold cross validation
+  for(i in 1:10){
+    #Segement your data by fold using the which() function 
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    test_targ_pos <- yourData[testIndexes, ]
+    train_targ_pos <- yourData[-testIndexes, ]
+    #Use the test and train data partitions however you desire...
+  }
+  
+  
+  
+  
+  
+  
   test_back<-as(test_back, 'Spatial')
   train_back<-as(train_back, 'Spatial')
   test_pos<-as(test_pos, 'Spatial')
   train_pos<-as(train_pos, 'Spatial')
   test_neg<-as(test_neg, 'Spatial')
   train_neg<-as(train_neg, 'Spatial')
+  test_targ_neg<-as(test_targ_neg, 'Spatial')
+  train_targ_neg<-as(train_targ_neg, 'Spatial')
+  test_targ_pos<-as(test_targ_pos, 'Spatial')
+  train_targ_pos<-as(train_targ_pos, 'Spatial')
   
   
   # loop throught datasets sharing the same training/validation samples
@@ -362,10 +411,14 @@ for (i in 1:100){
     outname = paste0(names(raster_list[j]), "_", prefix)
     fit <- maxent(x=raster_list[[j]], p = train_pos, a = train_back, removeDuplicates=F)
     #fit <- maxent(x=spec, p = train_pos, a = train_back, removeDuplicates=F)
-    eval <- evaluate(p=test_pos, a=test_neg, model = fit, x=raster_list[[j]])
+    eval <- evaluate(p=test_targ_pos, a=test_targ_neg, model = fit, x=pred_list[[j]])
+    
+    #plot(pred_list[[j]]$ndvi)
+    #plot(test_targ_neg, add = TRUE)
     
     ac<-as.data.frame(getACC(eval))
     ac$source<-outname
+    ac$target<-target
     
     out<-rbind(out, ac)
     
@@ -375,4 +428,4 @@ for (i in 1:100){
 }
 
 
-write_csv(out, here('results', paste0(prefix, data.version, '.csv')))
+write_csv(out, here('results', paste0(prefix, data.version, 'targ', target, '.csv')))
