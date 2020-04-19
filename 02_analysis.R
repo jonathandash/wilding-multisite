@@ -9,6 +9,7 @@
 library(here)
 library(tidyverse)
 library(ggrepel)
+library(patchwork)
 
 
 # Read data --------------------------------------------------------------------
@@ -51,8 +52,39 @@ west.south$site<-'HFP-3'
 west.south$targ<-'HFP-2'
 
 
+# inter site
 
-# Model accuracy comparison ----------------------------------------------------
+# Read through all the csv files in a location and store as a single file
+# All data wrangling for comparison done here on import
+
+inter.site <-
+  list.files(here('results',  'intersite'), 
+             pattern = "*.csv",
+             full.names = TRUE) %>% 
+  map_df(~read_csv(.)) %>%
+  separate(source, c('A', 'B', 'C'), remove = TRUE) %>%
+  mutate(C = 
+           C %>% 
+           is.na %>%
+           ifelse(B, C) ) %>%
+  mutate(A = ifelse(B == 'als', 'spectral + als', A)) %>%
+  select(-B) %>%
+  rename(model = A,
+         source = C) %>%
+  mutate(source_complexity = ifelse(source == 'tekapo', 'Low',
+                                    ifelse(source == 'kawekas', 'High', 'Moderate')),
+         receiver_complexity= ifelse(target == 'tekapo', 'Low',
+                                     ifelse(target == 'kawekas', 'High', 'Moderate'))) %>%
+  pivot_longer(cols = AUC:TSS, names_to = 'stat') %>%
+  mutate(model = str_replace(model, 'spec$', 'spectral')) %>%
+  unite(col = 'col_id', source_complexity:receiver_complexity, remove = FALSE)
+
+inter.site$source_complexity<- factor(inter.site$source_complexity, levels = c('Low', 'Moderate', 'High'))
+inter.site$receiver_complexity<- factor(inter.site$receiver_complexity, levels = c('Low', 'Moderate', 'High'))
+
+
+
+# Base model accuracy comparison ----------------------------------------------------
 
 base.all<-bind_rows(north.base, south.base, west.base, tekapo.base, kawekas.base) %>%
   mutate(source = str_replace(source, 'spec_north', 'spectral')) %>%
@@ -76,6 +108,9 @@ str(base.all)
          
 base.sum<- base.all %>% group_by(site, source, stat) %>%
   summarise(mean.value = mean(value, na.rm=TRUE))
+
+base.all %>% group_by(stat) %>%
+  summarise(mean.value = mean(value, na.rm = TRUE))
 
 
 
@@ -132,6 +167,11 @@ intra.site<-bind_rows(north.south,
 # calculate means
 intra.sum<- intra.site %>% group_by(site, targ, source, stat) %>%
   summarise(mean.intra.value = mean(value, na.rm=TRUE))
+
+
+# Overall mean of the intrasite data
+intra.site %>% group_by(stat) %>%
+  summarise(mean.value = mean(value, na.rm = TRUE))
 
 
 # bring in the base and display as a change from the base
@@ -195,4 +235,124 @@ intra.base %>% filter(stat == 'TSS') %>%
   mutate(change = base - intra) 
 
 
-# Between site model accuracy
+# Between site model accuracy --------------------------------------------------
+
+
+# Intersite compasison
+
+# overall average of inter sites
+inter.site %>% group_by(stat) %>%
+  summarise(mean.value = mean(value, na.rm = TRUE)) 
+
+
+
+# base by model type
+base.s<-base.all %>% group_by(source, stat) %>%
+  summarise(mean.value.base = mean(value, na.rm = TRUE)) %>%
+  filter(stat %in% c('AUC', 'Kappa', 'TSS')) %>%
+  rename(model = source)
+
+# intra all by model
+intra.s<-intra.site %>% group_by(source, stat) %>%
+  summarise(mean.value.intra = mean(value, na.rm = TRUE)) %>%
+  filter(stat %in% c('AUC', 'Kappa', 'TSS')) %>%
+  rename(model = source)
+
+
+# intersite by model type
+inter.site %>% group_by(model, stat) %>%
+  summarise(mean.value.inter = mean(value, na.rm = TRUE)) %>%
+  filter(stat %in% c('AUC', 'Kappa', 'TSS')) %>%
+  left_join(base.s) %>%
+  mutate(difference = mean.value.base - mean.value.inter)
+
+
+  
+# intersite by source complexity
+inter.site %>% group_by(source_complexity, stat) %>%
+  summarise(mean.value = mean(value))
+
+
+# inter.site by receiver complexity
+inter.site %>% group_by(receiver_complexity, stat) %>%
+  summarise(mean.value = mean(value))
+
+
+# inter.site by receiver and site complexity
+inter.site %>% group_by(source_complexity, receiver_complexity,  stat, col_id) %>%
+  summarise(mean.value = mean(value)) %>% 
+  filter(stat %in% c('AUC', 'Kappa', 'TSS')) %>% 
+  ggplot(aes(x = source_complexity, y = receiver_complexity, size = mean.value, colour = mean.value)) +
+  geom_point(alpha = 0.6) +
+  scale_size(range = c(10,50)) +
+  theme_bw() +
+  scale_colour_viridis_c()+
+  facet_wrap(.~stat) 
+  #theme(legend.position = 'none')
+  
+
+
+
+# inter.site by receiver and site complexity
+p1<-inter.site %>% 
+  group_by(source_complexity, receiver_complexity,  model, stat, col_id) %>%
+  summarise(mean.value = mean(value)) %>% 
+  filter(stat %in% c('AUC')) %>% 
+  ggplot(aes(x = source_complexity, y = receiver_complexity, colour = mean.value, fill = mean.value)) +
+  geom_tile(alpha = 1) +
+  geom_text(aes(label = round(mean.value, 2)), colour = '#a84551') +
+  #scale_size(range = c(10,50)) +
+  theme_bw() +
+  scale_colour_viridis_c(option = 'E')+
+  scale_fill_viridis_c(option = 'E')+
+  facet_wrap(.~model) +
+  labs(x = '', y = '', fill = 'Mean value', colour = 'Mean value', title = 'AUC')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  #theme(legend.position = 'none')
+p1
+
+# inter.site by receiver and site complexity
+p2<-inter.site %>% 
+  group_by(source_complexity, receiver_complexity, model,  stat, col_id) %>%
+  summarise(mean.value = mean(value)) %>% 
+  filter(stat %in% c('Kappa')) %>% 
+  ggplot(aes(x = source_complexity, y = receiver_complexity, colour = mean.value, fill = mean.value)) +
+  geom_tile(alpha = 0.9) +
+  geom_text(aes(label = round(mean.value, 2)), colour = '#a84551') +
+  #scale_size(range = c(10,50)) +
+  theme_bw() +
+  scale_colour_viridis_c(option = 'E')+
+  scale_fill_viridis_c(option = 'E')+
+  facet_wrap(.~model) +
+  labs(x = '', y = 'Receiver AOI complexity', fill = 'Mean value', colour = 'Mean value', title = 'Kappa')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+
+# inter.site by receiver and site complexity
+p3<-inter.site %>% 
+  group_by(source_complexity, receiver_complexity,  model, stat, col_id) %>%
+  summarise(mean.value = mean(value)) %>% 
+  filter(stat %in% c('TSS')) %>% 
+  ggplot(aes(x = source_complexity, y = receiver_complexity, colour = mean.value, fill = mean.value)) +
+  geom_tile(alpha = 0.9) +
+  geom_text(aes(label = round(mean.value, 2)), colour = '#a84551') +
+  #scale_size(range = c(10,50)) +
+  theme_bw() +
+  scale_colour_viridis_c(option = 'E')+
+  scale_fill_viridis_c(option = 'E')+
+  facet_wrap(.~model) +
+  labs(x = 'Donor AOI complexity', y = '', fill = 'Mean value', colour = 'Mean value', title = 'TSS')+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+
+
+
+p.out<- p1 / p2 /p3 #+ plot_annotation(tag_levels = 'a', tag_suffix = ')')
+p.out
+
+png(here('out', 'inter_site_tile.png'), h = 17, w = 19, units = 'cm', res= 500)
+p.out
+dev.off()
+
+
+
