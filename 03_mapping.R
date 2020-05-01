@@ -1,8 +1,8 @@
 #---------------------------------------------------------------------------------
-# 01_UAV_Modelling
-# Select variables and fit Maxent models for the UAV data.
-# Output predictive maps and stats from the bootstrapping procedure.
-# Now updated for validation using different data
+# 03_mapping
+# Make some output maps
+# 
+# 
 # April 2020
 #---------------------------------------------------------------------------------
 
@@ -21,7 +21,12 @@ require(doParallel)
 library(sf)
 library(tidyverse)
 
+# set java number of cores to use
+options(java.parameters = "-Xmx6g" )
+
 rasterOptions(tmpdir='E:/tmp_raster')
+
+
 
 
 # Global options -----------------------------------------------------------------
@@ -175,18 +180,18 @@ spectarget<-stack(spectarget$RED, spectarget$GREEN, spectarget$BLUE, spectarget$
 
 # Prepare the als raster
 names(als_og)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
-              'zq15', 'zq20', 'zq25', 'zq30', 'zq35', 'zq40', 'zq45', 'zq50', 'zq55', 'zq60', 
-              'zq65', 'zq70', 'zq75', 'zq80', 'zq85', 'zq90', 'zq95', 'zpcum1', 'zpcum2', 'zpcum3', 
-              'zpcum4', 'zpcum5', 'zpcum6', 'zpcum7', 'zpcum8', 'zpcum9', 'itot', 'imax', 'imean',
-              'isd',  'iskew',  'ikurt',  'ipground', 'ipcumzq10', 'ipcumzq30',  'ipcumzq50',  'ipcumzq70',
-              'ipcumzq90',  'p1th', 'p2th', 'p3th', 'p4th', 'p5th', 'pground',  'n', 'area') 
-
-names(alstarget)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
                  'zq15', 'zq20', 'zq25', 'zq30', 'zq35', 'zq40', 'zq45', 'zq50', 'zq55', 'zq60', 
                  'zq65', 'zq70', 'zq75', 'zq80', 'zq85', 'zq90', 'zq95', 'zpcum1', 'zpcum2', 'zpcum3', 
                  'zpcum4', 'zpcum5', 'zpcum6', 'zpcum7', 'zpcum8', 'zpcum9', 'itot', 'imax', 'imean',
                  'isd',  'iskew',  'ikurt',  'ipground', 'ipcumzq10', 'ipcumzq30',  'ipcumzq50',  'ipcumzq70',
-                 'ipcumzq90',  'p1th', 'p2th', 'p3th', 'p4th', 'p5th', 'pground',  'n', 'area')
+                 'ipcumzq90',  'p1th', 'p2th', 'p3th', 'p4th', 'p5th', 'pground',  'n', 'area') 
+
+names(alstarget)<-c('zmax', 'zmean',  'zsd',  'zskew',  'zkurt', 'zentropy', 'pzabovezmean', 'pzabove2', 'zq5',  'zq10',        
+                    'zq15', 'zq20', 'zq25', 'zq30', 'zq35', 'zq40', 'zq45', 'zq50', 'zq55', 'zq60', 
+                    'zq65', 'zq70', 'zq75', 'zq80', 'zq85', 'zq90', 'zq95', 'zpcum1', 'zpcum2', 'zpcum3', 
+                    'zpcum4', 'zpcum5', 'zpcum6', 'zpcum7', 'zpcum8', 'zpcum9', 'itot', 'imax', 'imean',
+                    'isd',  'iskew',  'ikurt',  'ipground', 'ipcumzq10', 'ipcumzq30',  'ipcumzq50',  'ipcumzq70',
+                    'ipcumzq90',  'p1th', 'p2th', 'p3th', 'p4th', 'p5th', 'pground',  'n', 'area')
 
 # Crop the als data to the aoi
 als<-crop(als_og, aoi, snap='near')
@@ -203,12 +208,12 @@ als_pred<-stack(als$zmax, als$zmean, als$zsd, als$pzabovezmean,
                 als$p1th, als$p2th, als$p3th, als$p4th, als$p5th)
 
 als_pred_target<-stack(alstarget$zmax, alstarget$zmean, alstarget$zsd, alstarget$pzabovezmean,
-                alstarget$zpcum1, alstarget$zpcum2, alstarget$zpcum3,
-                alstarget$zpcum4, alstarget$zpcum5, alstarget$zpcum6,
-                alstarget$zq5, alstarget$zq10, alstarget$zq20, alstarget$zq30, alstarget$zq50, alstarget$zq75, alstarget$zq95,
-                alstarget$isd, alstarget$imean,
-                alstarget$ikurt, alstarget$imax, alstarget$pground,
-               alstarget$p1th, alstarget$p2th, alstarget$p3th, alstarget$p4th, alstarget$p5th)
+                       alstarget$zpcum1, alstarget$zpcum2, alstarget$zpcum3,
+                       alstarget$zpcum4, alstarget$zpcum5, alstarget$zpcum6,
+                       alstarget$zq5, alstarget$zq10, alstarget$zq20, alstarget$zq30, alstarget$zq50, alstarget$zq75, alstarget$zq95,
+                       alstarget$isd, alstarget$imean,
+                       alstarget$ikurt, alstarget$imax, alstarget$pground,
+                       alstarget$p1th, alstarget$p2th, alstarget$p3th, alstarget$p4th, alstarget$p5th)
 
 # resample the als raster to match the UAV
 als_pred<-resample(als_pred, spec, "bilinear")
@@ -251,195 +256,17 @@ background = spsample(aoi, 2000, type="random")
 positive = spsample(treeallpoly, 2000, type="random")
 negative = spsample(nontreepoly, 2000, type = "random")
 
-background_target = spsample(aoi_target, 2000, type="random")
-positive_target = spsample(treeallpolytarget, 2000, type="random")
-negative_target = spsample(nontreepolytarget, 2000, type = "random")
 
-#plot(spectarget$ndvi)
-#plot(aoi_target, add=TRUE)
-#plot(negative_target, add=TRUE)
+registerDoParallel(6)
 
-# set.seed(seed)
-# positive<-st_sample(treeallpoly, size = 2000, type = 'random')
-# st_crs(positive)<-2193
-# positive<-st_sf(positive)
-# positive<-as(positive, 'Spatial')
+fit <- maxent(x=als_pred, p = positive, a = background, removeDuplicates=F)
+#fit
 
+beginCluster(6)
+pred.map <- clusterR(als_pred_target, raster::predict, args = list(model = fit))
+endCluster()
 
-# First spectral model
-# rgbn_model <- maxent(x=spec, p = positive, a = background, removeDuplicates=F)
-# rgbn_model@results[ grep("permutation", row.names(as.data.frame(rgbn_model@results))), ]
-# eval <- evaluate(p=positive, a=negative, model = rgbn_model, x=spec)
+stopImplicitCluster()
 
-
-# First als model
-#als_model <- maxent(x=als_pred, p = positive, a = background, removeDuplicates=F)
-#als_model@results[ grep("permutation", row.names(as.data.frame(als_model@results))), ]
-
-
-# First combined model
-# als_spec_model <- maxent(x=spec_als, p = positive, a = background, removeDuplicates=F)
-#als_spec_model@results[ grep("permutation", row.names(as.data.frame(als_spec_model@results))), ]
-
-
-
-
-
-
-
-
-
-# Cross Validation -----------------------------------------------------------
-
-
-# run all combinations
-raster_list <- list(spec, als_pred, spec_als)
-names(raster_list) <- c("spec", "als_pred", "spec_als")
-
-# Predict over the same rasters as used to fit the model for now.
-pred_list <- list(spectarget, als_pred_target, spec_als_target)
-names(pred_list) <- c("spectarget", "als_pred_target", "spec_als_target")
-
-#registerDoParallel(6)
-
-# prepare storing lists for predicted rasters
-#pred <- list()
-#pred2 <- list()
-
-
-# Convert sp to sf for ease of folding. May not need to do this eventually
-pos.sf<-st_as_sf(positive)
-back.sf<-st_as_sf(background)
-neg.sf<-st_as_sf(negative)
-pos.targ.sf<-st_as_sf(positive_target)
-neg.targ.sf<-st_as_sf(negative_target)
-
-#plot(spectarget$ndvi)
-#plot(neg.targ.sf, add=TRUE)
-
-
-out<-data.frame()
-
-# k-fold cross validation
-for (i in 1:10){
-  #i=1
-  print(i)
-  
-  #Randomly shuffle the positive data 
-  yourData<-pos.sf[sample(nrow(pos.sf)),]
-  
-  #Create 10 equally size folds
-  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
-  
-  #Perform 10 fold cross validation
-  for(i in 1:10){
-    #Segement your data by fold using the which() function 
-    testIndexes <- which(folds==i,arr.ind=TRUE)
-    test_pos <- yourData[testIndexes, ]
-    train_pos <- yourData[-testIndexes, ]
-    #Use the test and train data partitions however you desire...
-  }
-  
-  #Randomly shuffle the background data 
-  yourData<-back.sf[sample(nrow(back.sf)),]
-  
-  #Create 10 equally size folds
-  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
-  
-  #Perform 10 fold cross validation
-  for(i in 1:10){
-    #Segement your data by fold using the which() function 
-    testIndexes <- which(folds==i,arr.ind=TRUE)
-    test_back <- yourData[testIndexes, ]
-    train_back <- yourData[-testIndexes, ]
-    #Use the test and train data partitions however you desire...
-  }
-  
-  #Randomly shuffle the background data 
-  yourData<-neg.sf[sample(nrow(neg.sf)),]
-  
-  #Create 10 equally size folds
-  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
-  
-  #Perform 10 fold cross validation
-  for(i in 1:10){
-    #Segement your data by fold using the which() function 
-    testIndexes <- which(folds==i,arr.ind=TRUE)
-    test_neg <- yourData[testIndexes, ]
-    train_neg <- yourData[-testIndexes, ]
-    #Use the test and train data partitions however you desire...
-  }
-  
-  
-  #Randomly shuffle the background data 
-  yourData<-neg.targ.sf[sample(nrow(neg.targ.sf)),]
-  
-  #Create 10 equally size folds
-  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
-  
-  #Perform 10 fold cross validation
-  for(i in 1:10){
-    #Segement your data by fold using the which() function 
-    testIndexes <- which(folds==i,arr.ind=TRUE)
-    test_targ_neg <- yourData[testIndexes, ]
-    train_targ_neg <- yourData[-testIndexes, ]
-    #Use the test and train data partitions however you desire...
-  }
-  
-  #Randomly shuffle the background data 
-  yourData<-pos.targ.sf[sample(nrow(pos.targ.sf)),]
-  
-  #Create 10 equally size folds
-  folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
-  
-  #Perform 10 fold cross validation
-  for(i in 1:10){
-    #Segement your data by fold using the which() function 
-    testIndexes <- which(folds==i,arr.ind=TRUE)
-    test_targ_pos <- yourData[testIndexes, ]
-    train_targ_pos <- yourData[-testIndexes, ]
-    #Use the test and train data partitions however you desire...
-  }
-  
-  
-  
-  
-  
-  
-  test_back<-as(test_back, 'Spatial')
-  train_back<-as(train_back, 'Spatial')
-  test_pos<-as(test_pos, 'Spatial')
-  train_pos<-as(train_pos, 'Spatial')
-  test_neg<-as(test_neg, 'Spatial')
-  train_neg<-as(train_neg, 'Spatial')
-  test_targ_neg<-as(test_targ_neg, 'Spatial')
-  train_targ_neg<-as(train_targ_neg, 'Spatial')
-  test_targ_pos<-as(test_targ_pos, 'Spatial')
-  train_targ_pos<-as(train_targ_pos, 'Spatial')
-  
-  
-  # loop throught datasets sharing the same training/validation samples
-  for (j in 1:length(raster_list)){ 
-    #j=1
-    # unique loop name
-    outname = paste0(names(raster_list[j]), "_", prefix)
-    fit <- maxent(x=raster_list[[j]], p = train_pos, a = train_back, removeDuplicates=F)
-    #fit <- maxent(x=spec, p = train_pos, a = train_back, removeDuplicates=F)
-    eval <- evaluate(p=test_targ_pos, a=test_targ_neg, model = fit, x=pred_list[[j]])
-    
-    #plot(pred_list[[j]]$ndvi)
-    #plot(test_targ_neg, add = TRUE)
-    
-    ac<-as.data.frame(getACC(eval))
-    ac$source<-outname
-    ac$target<-target
-    
-    out<-rbind(out, ac)
-    
-    #save(pred_out, file = here('results', paste0(outname, ".RData")))
-    print(paste0("Done ", outname, "!!!"))
-  }
-}
-
-
-write_csv(out, here('results', paste0(prefix, data.version, 'targ_', target, '.csv')))
+writeRaster(pred.map, here('results', paste0(prefix, '_targ', target, '_als_pred_raster.tif')), overwrite = TRUE)
+saveRDS(pred.map, here('results',  paste0(prefix,' _targ', target, 'model.RDS')))

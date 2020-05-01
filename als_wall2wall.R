@@ -13,9 +13,11 @@ library(raster)
 
 
 # Read data
-ctg<-readLAScatalog('E:/hanmer-wildings/LAZ_subset/norm')
+ctg<-readLAScatalog('X:/Scion_Kawekas/SCION_Kaweka_2017/11_LAS_Processing/01_ClassifiedPoints/clip/height')
 print(ctg)
 plot(ctg)
+
+
 
 
 # Ignore points with elevations less than 0
